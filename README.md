@@ -5,6 +5,9 @@ This repository implements a language model trained on the works of Jane Austen.
 ## Authors
 - [James Chan](https://github.com/chanjbc)
 
+## Requirements
+- Python 3.7+
+- PyTorch
 
 ### TODO
 - Add `generate.py` and `model.pth`
