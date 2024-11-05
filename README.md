@@ -8,6 +8,7 @@ This repository implements a language model trained on the works of Jane Austen.
 ## Requirements
 - Python 3.7+
 - PyTorch
+- tiktoken (technically optional: if not supplied, the model will operate on the character level rather than on the token level) 
 
 ### TODO
 - Add `generate.py` and `model.pth`
