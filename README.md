@@ -9,7 +9,7 @@ Elizabeth's presence was as beautiful and entertainment of the meeting her linen
 "It is very good Mr. Bingley," added Georgiana. "We never thought of him. That I am very glad they contrives we had been more birds are old in October." 
 ```
 
-As you can see, the text is only half coherent--this is because modern language models are larger by orders of magnitude (e.g., GPT-2 has >1 billion parameters, and GPT-3 has >100 billion parameters).
+As you can see, the text is only half coherent--this is because modern language models are larger by orders of magnitude (e.g., GPT-2 has >1 billion parameters, and GPT-3 has >100 billion parameters), and therefore have better representational power and expressiveness.
 
 ## Authors
 - [James Chan](https://github.com/chanjbc)
