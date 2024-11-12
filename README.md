@@ -14,6 +14,7 @@ As mentioned in the description, this model is a decoder-only transformer model 
 - head_size = 128
 - n_head = 4
 - n_block = 6
+- 
 In total, the trained model contains over 70 million parameters. 
 
 Here's a screenshot of the training/validation loss plotted over time (note that early stopping was used to avoid overfitting):
