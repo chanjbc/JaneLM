@@ -5,7 +5,7 @@ from torch.nn import functional as F
 from dataclasses import dataclass
 
 @dataclass
-class TransformerConfig:
+class ModelConfig:
     """ Transformer hyperparameters """
     batch_size: int = 32 # B dimension - num examples to process in parallel
     context_size: int = 96 # T dimension - max sequence length
@@ -94,7 +94,7 @@ class Block(nn.Module):
         x = x + self.ffwd(self.ln2(x))
         return x
 
-class DecoderTransformer(nn.Module):
+class JaneLM(nn.Module):
     """ Assemble entire model by stacking blocks and final layer norm """
     def __init__(self, config):
         super().__init__()
