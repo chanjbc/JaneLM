@@ -16,7 +16,7 @@ class TrainConfig:
     eval_iters: int = 250  # how many runs to average over when evaluating
     learning_rate: float = 1e-4
     loss_tolerance: float = (
-        0.075  # if validation loss increases by this amount, stop training
+        0.075  # early stopping: if validation loss increases by this amount, stop training
     )
     train_test_split: float = 0.9  # fraction of data to use for training
     batch_size: int = 32  # how many independent sequences to process in parallel
@@ -120,6 +120,7 @@ class Trainer:
 def main():
     # initialize configs
     train_config = TrainConfig(max_iters=1_000)
+    # TODO: add arguments for parameters
     model_config = ModelConfig(
         batch_size=1,
         context_size=1,
