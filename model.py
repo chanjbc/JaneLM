@@ -6,10 +6,12 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelConfig:
-    """ Transformer hyperparameters """
+    """
+    NOTE: Sets transformer hyperparameters. Adjust as necessary according to your compute.
+    """
     batch_size: int = 32 # B dimension - num examples to process in parallel
     context_size: int = 96 # T dimension - max sequence length
-    # note that we require n_embed % head_size == 0 and n_embed / head_size = n_head
+    # NOTE: ensure that n_embed % head_size == 0 and n_embed / head_size = n_head
     n_embed: int = 512 # C dimension - embedding dimension
     head_size: int = 128 # Dk - head dimension
     n_head: int = 4 # num of attention heads
@@ -17,7 +19,7 @@ class ModelConfig:
     dropout: float = 0.4 # dropout rate
 
 class Head(nn.Module):
-    """ Single causal self attention head """
+    """Defines a single causal self attention head."""
     def __init__(self, config):
         super().__init__()
         self.query = nn.Linear(config.n_embed, config.head_size, bias=False)
@@ -49,7 +51,7 @@ class Head(nn.Module):
         return weights
 
 class MultiHead(nn.Module):
-    """ Multi-headed attention block """
+    """Defines a multi-headed attention block."""
     def __init__(self, config):
         super().__init__()
         assert config.n_embed % config.head_size == 0
@@ -66,7 +68,7 @@ class MultiHead(nn.Module):
         return out
 
 class FeedForward(nn.Module):
-    """ MLP layer (using GELU as per the GPT-2 implementation) """
+    """Defines an MLP layer (using GELU as per the GPT-2 implementation)."""
     def __init__(self, config):
         super().__init__()
         self.net = nn.Sequential(
@@ -80,7 +82,7 @@ class FeedForward(nn.Module):
         return self.net(x)
 
 class Block(nn.Module):
-    """ Decoder transformer block (combine transformer, MLP, layernorm, residual connection) """
+    """Defines a decoder transformer block (combine transformer, MLP, layernorm, residual connection)."""
     def __init__(self, config):
         super().__init__()
         self.sa = MultiHead(config)
@@ -95,7 +97,7 @@ class Block(nn.Module):
         return x
 
 class JaneLM(nn.Module):
-    """ Assemble entire model by stacking blocks and final layer norm """
+    """Assemble entire model by stacking blocks and final layer norm."""
     def __init__(self, config):
         super().__init__()
         self.config = config
@@ -109,6 +111,7 @@ class JaneLM(nn.Module):
         self.apply(self._init_weights)
 
     def _init_weights(self, module):
+        # add asymmetric weight initialization
         if isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
             if module.bias is not None:

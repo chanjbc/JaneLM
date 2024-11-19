@@ -1,29 +1,34 @@
 import argparse
+import pickle
 import tiktoken
 import torch
+from model import JaneLM
 
-from model import JaneLM, ModelConfig
+
 
 def main():
-    # TODO: add arguments for these parameters
-    model_config = ModelConfig(
-        batch_size=1,
-        context_size=1,
-        n_embed=4,
-        head_size=4,
-        n_head=1,
-        n_block=1,
-        dropout=0,
-    )
+    """Generates text from a saved model."""
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--modelFileName", 
+        "--model_file_name", 
         type=str, 
-        help="Model file name (place model in ./models)", 
+        help="Model file name containing trained weights: will be saved to ./models/{model_file_name}", 
         default="model.pth"
+    )
+    parser.add_argument(
+        "--config_file_name",
+        type=str,
+        help="File name containing saved/pickled model parameters: assumed to be in ./models/{config_file_name}",
+        default="model-config.pkl"
+    )
+    parser.add_argument(
+        "--output_file_name",
+        type=str,
+        help="Output file name: will be created at ./generated/{output_file_name}",
+        default="output.txt"
     )
     parser.add_argument(
         "--text", 
@@ -32,37 +37,26 @@ def main():
         default=" "
     )
     parser.add_argument(
-        "--tokenization",
-        choices=["tiktoken", "character"],
-        default="character",
-        help="Tokenization method to use",
-    )
-    parser.add_argument(
-        "--outputFileName",
-        type=str,
-        help="Output .txt file name: will be created at ./generated",
-        default="output"
-    )
-    parser.add_argument(
         "--num_tokens",
         type=int,
         help="Number of tokens to generate",
-        default=1_000
+        default=10_000
     )
+
     args = parser.parse_args()
 
+    model_config = pickle.load(open(f"./models/{args.config_file_name}", "rb"))
+    tokenization = model_config.tokenization
 
-    # TODO: remove this
-    # load and process data
-    with open("./data/janeausten.txt", "r", encoding="utf-8") as f:
-        text = f.read()
-
-    if args.tokenization == "tiktoken":
+    if tokenization == "tiktoken":
         # initialize tiktoken
         enc = tiktoken.get_encoding("gpt2")
         encode, decode = enc.encode, enc.decode
         model_config.vocab_size = enc.n_vocab
     else:
+        # load and process data
+        with open("./data/janeausten.txt", "r", encoding="utf-8") as f:
+            text = f.read()
         # create encodings/decodings from characters
         chars = sorted(list(set(text)))
         model_config.vocab_size = len(chars)
@@ -74,13 +68,13 @@ def main():
 
     starting_text = torch.tensor(encode(args.text), dtype=torch.long, device=device).unsqueeze(0)
 
-    model_state = torch.load(f"./models/{args.modelFileName}", map_location=device)
+    model_state = torch.load(f"./models/{args.model_file_name}", map_location=device)
     model = JaneLM(model_config).to(device)
     model.load_state_dict(model_state)
 
     # TODO: add error handling
-    open(f'./models/{args.outputFileName}.txt', 'w').write(decode(model.generate(starting_text, max_new_tokens=args.num_tokens)[0].tolist()))
-    print(f"Text successfully generated to ./models/{args.outputFileName}.txt")
+    open(f'./generated/{args.output_file_name}', 'w').write(decode(model.generate(starting_text, max_new_tokens=args.num_tokens)[0].tolist()))
+    print(f"Text successfully generated to ./generated/{args.output_file_name}")
 
 if __name__ == "__main__":
     main()

@@ -1,16 +1,21 @@
 import argparse
+import pickle
 import tiktoken
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from dataclasses import dataclass
 from tqdm import tqdm
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple
 from model import ModelConfig, JaneLM
+
 
 
 @dataclass
 class TrainConfig:
+    """
+    NOTE: Config class containing training parameters. Adjust as necessary.
+    """
     max_iters: int = 15_000  # number of training iterations
     eval_interval: int = 250  # how frequently the model is evaluated
     eval_iters: int = 250  # how many runs to average over when evaluating
@@ -19,7 +24,7 @@ class TrainConfig:
         0.075  # early stopping: if validation loss increases by this amount, stop training
     )
     train_test_split: float = 0.9  # fraction of data to use for training
-    batch_size: int = 32  # how many independent sequences to process in parallel
+
 
 
 class Trainer:
@@ -41,12 +46,12 @@ class Trainer:
     def get_batch(
         self, split: str, train_data: torch.Tensor, val_data: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Get a batch of data for training or validation, each containing context_size-length sequences sampled randomly. """
+        """Get batch of data for training or validation, each containing context_size-length sequences sampled randomly."""
         data = train_data if split == "train" else val_data
 
         # generate random starting indices
         ix = torch.randint(
-            len(data) - self.model_config.context_size, (self.train_config.batch_size,)
+            len(data) - self.model_config.context_size, (self.model_config.batch_size,)
         )
         # get sequences of context_size length
         x = torch.stack([data[i : i + self.model_config.context_size] for i in ix])
@@ -79,7 +84,7 @@ class Trainer:
         return out
 
     def train(self, data: torch.Tensor) -> None:
-        """Train the model using random sampling strategy."""
+        """Train model using random sampling strategy."""
 
         # train/val split
         n = int(self.train_config.train_test_split * len(data))
@@ -120,16 +125,7 @@ class Trainer:
 def main():
     # initialize configs
     train_config = TrainConfig(max_iters=1_000)
-    # TODO: add arguments for parameters
-    model_config = ModelConfig(
-        batch_size=1,
-        context_size=1,
-        n_embed=4,
-        head_size=4,
-        n_head=1,
-        n_block=1,
-        dropout=0,
-    )
+    model_config = ModelConfig()
 
     # load and process data
     with open("./data/janeausten.txt", "r", encoding="utf-8") as f:
@@ -142,6 +138,11 @@ def main():
         choices=["tiktoken", "character"],
         default="character",
         help="Tokenization method to use",
+    )
+    parser.add_argument(
+        "--config_file_name",
+        default="model-config.pkl",
+        help="File name containing saved model parameters: will be saved to ./models/{config_file_name}",
     )
     args = parser.parse_args()
 
@@ -159,13 +160,20 @@ def main():
         # encoders/decoders use character lookup tables
         encode = lambda s: [stoi[c] for c in s]
         decode = lambda l: "".join([itos[c] for c in l])
+    model_config.tokenization = args.tokenization
+    
+    # save model config
+    with open(f"./models/{args.config_file_name}", "wb") as f:
+        pickle.dump(model_config, f)
+
+    # encode data
     data = torch.tensor(encode(text), dtype=torch.long)
 
     # initialize model
     model = JaneLM(model_config)
     print(f"Model Parameters: {model.config}")
     print(
-        f"Number of Parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f}M"
+        f"Number of Parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f} M"
     )
 
     # initialize trainer and start training
