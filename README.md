@@ -36,12 +36,11 @@ As you can see, the text is only half coherent--this is because modern language 
 - tqdm
 
 ### TODO
-- Add `generate.py` and `model.pth`
-- Separate main file into `model.py`, `train.py`, ...
-- Add tqdm progress bars for train/eval
-- Add argparse support
-- Add dataclass support
+- ~~Add `generate.py` and `model.pth`~~
+- ~~Separate main file into `model.py`, `train.py`, ...~~
+- ~~Add tqdm progress bars for train/eval~~
+- ~~Add argparse support~~
+- ~~Add dataclass support~~
 - Continue to improve model
-- Attempt to replicate assistant behavior without fine-tuning (probably poor performance)
-- Fine-tune model???
+- Fine-tuning???
 - Add more to this README :)
