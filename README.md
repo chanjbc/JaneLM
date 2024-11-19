@@ -31,7 +31,9 @@ As you can see, the text is only half coherent--this is because modern language 
 ## Requirements
 - Python 3.7+
 - PyTorch
-- tiktoken (technically optional: if not supplied, the model will operate on the character level rather than on the token level) 
+- tiktoken
+- argparse
+- tqdm
 
 ### TODO
 - Add `generate.py` and `model.pth`
