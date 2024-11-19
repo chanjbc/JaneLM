@@ -35,6 +35,13 @@ As you can see, the text is only half coherent--this is because modern language 
 - argparse
 - tqdm
 
+## References
+- ["Attention is All You Need"](https://arxiv.org/abs/1706.03762)
+- [Andrej Karpathy's GPT Series](https://www.youtube.com/watch?v=kCc8FmEb1nY&list=PLAqhIrjkxbuWI23v9cThsA9GvCAUhRvKZ&index=7)
+- [Deep Learning: Foundation and Concepts](https://www.bishopbook.com/)
+
+
+
 ### TODO
 - ~~Add `generate.py` and `model.pth`~~
 - ~~Separate main file into `model.py`, `train.py`, ...~~
