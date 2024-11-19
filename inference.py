@@ -13,21 +13,21 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model_file_name", 
+        "--model_file", 
         type=str, 
-        help="Model file name containing trained weights: will be saved to ./models/{model_file_name}", 
+        help="Model file name containing trained weights, assumed to be at ./models/{model_file}", 
         default="model.pth"
     )
     parser.add_argument(
-        "--config_file_name",
+        "--config_file",
         type=str,
-        help="File name containing saved/pickled model parameters: assumed to be in ./models/{config_file_name}",
-        default="model-config.pkl"
+        help="File name containing saved/pickled model parameters: assumed to be at ./models/{config_file}",
+        default="model_config.pkl"
     )
     parser.add_argument(
-        "--output_file_name",
+        "--output_file",
         type=str,
-        help="Output file name: will be created at ./generated/{output_file_name}",
+        help="Output file name: will be created at ./generated/{output_file}",
         default="output.txt"
     )
     parser.add_argument(
@@ -45,7 +45,7 @@ def main():
 
     args = parser.parse_args()
 
-    model_config = pickle.load(open(f"./models/{args.config_file_name}", "rb"))
+    model_config = pickle.load(open(f"./models/{args.config_file}", "rb"))
     tokenization = model_config.tokenization
 
     if tokenization == "tiktoken":
@@ -68,13 +68,13 @@ def main():
 
     starting_text = torch.tensor(encode(args.text), dtype=torch.long, device=device).unsqueeze(0)
 
-    model_state = torch.load(f"./models/{args.model_file_name}", map_location=device)
+    model_state = torch.load(f"./models/{args.model_file}", map_location=device)
     model = JaneLM(model_config).to(device)
     model.load_state_dict(model_state)
 
     # TODO: add error handling
-    open(f'./generated/{args.output_file_name}', 'w').write(decode(model.generate(starting_text, max_new_tokens=args.num_tokens)[0].tolist()))
-    print(f"Text successfully generated to ./generated/{args.output_file_name}")
+    open(f'./generated/{args.output_file}', 'w').write(decode(model.generate(starting_text, max_new_tokens=args.num_tokens)[0].tolist()))
+    print(f"Text successfully generated to ./generated/{args.output_file}")
 
 if __name__ == "__main__":
     main()

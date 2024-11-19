@@ -34,6 +34,7 @@ class Trainer:
         train_config: TrainConfig,
         model_config: ModelConfig,
         device: str = "cuda" if torch.cuda.is_available() else "cpu",
+        model_file: str = "model.pth",
     ):
         self.model = model.to(device)
         self.train_config = train_config
@@ -42,6 +43,7 @@ class Trainer:
         self.optimizer = torch.optim.AdamW(
             model.parameters(), lr=train_config.learning_rate
         )
+        self.model_file = model_file
 
     def get_batch(
         self, split: str, train_data: torch.Tensor, val_data: torch.Tensor
@@ -102,7 +104,7 @@ class Trainer:
                 )
                 # save best model
                 if losses["val"] < best_val_loss:
-                    torch.save(self.model.state_dict(), "./models/model.pth")
+                    torch.save(self.model.state_dict(), f"./models/{self.model_file}")
                     best_val_loss = losses["val"]
 
                 # early stopping to prevent overfitting
@@ -140,9 +142,14 @@ def main():
         help="Tokenization method to use",
     )
     parser.add_argument(
-        "--config_file_name",
-        default="model-config.pkl",
-        help="File name containing saved model parameters: will be saved to ./models/{config_file_name}",
+        "--model_file",
+        default="model.pth",
+        help="Model file name containing trained weights: will be saved to ./models/{model_file}",
+    )
+    parser.add_argument(
+        "--config_file",
+        default="model_config.pkl",
+        help="File name containing saved model parameters: will be saved to ./models/{config_file}",
     )
     args = parser.parse_args()
 
@@ -163,7 +170,7 @@ def main():
     model_config.tokenization = args.tokenization
     
     # save model config
-    with open(f"./models/{args.config_file_name}", "wb") as f:
+    with open(f"./models/{args.config_file}", "wb") as f:
         pickle.dump(model_config, f)
 
     # encode data
@@ -177,7 +184,7 @@ def main():
     )
 
     # initialize trainer and start training
-    trainer = Trainer(model, train_config, model_config)
+    trainer = Trainer(model, train_config, model_config, model_file=args.model_file)
     trainer.train(data)
 
 
