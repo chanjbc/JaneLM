@@ -89,6 +89,7 @@ Here's a screenshot of the training/validation loss plotted over time (note that
 - ~~Add tqdm progress bars for train/eval~~
 - ~~Add argparse support~~
 - ~~Add dataclass support~~
+- Fix inference errors due to UTF-8 and weird tokenization stuff
 - Continue to improve model
 - Fine-tuning???
 - Add more to this README :)
