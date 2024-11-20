@@ -21,8 +21,8 @@ As you can see, the text is only half coherent--this is because modern language 
 - argparse
 - tqdm
 
-## Model Details
-The model is a decoder-only transformer model using causal self-attention with prenorms (as opposed to the postnorms used in the original implementation). The model was trained using the cross-entropy loss with the AdamW optimizer, and trains on the dataset by first selecting random mini-batches of tokens and optimizing autoregressively. While training, the training/validation losses are averaged over multiple passes, reducing the noise of the error signals, and early stopping is additionally used to stop training before overfitting begins.
+## More Implementation Details
+The model is a decoder-only transformer model using causal self-attention with prenorms (as opposed to the postnorms used in the original implementation). By default, the model is trained using the cross-entropy loss with the AdamW optimizer, and trains on the dataset by first selecting random mini-batches of tokens of length context_size and optimizing autoregressively. While training, the training/validation losses are averaged over multiple passes, reducing the noise of the error signals, and early stopping is additionally used to stop training before overfitting begins. For tokenization, this repo accepts either character-level tokenization or tiktoken GPT-2 tokenization.
 
 ## Usage
 You can either use this repository to train your own model or run the sample 70 M model (see ["Running the 70 M Model"](#running-the-70-m-model)).
@@ -37,7 +37,10 @@ Then, run `traineval.py`, which uses the following command line arguments:
 
 Here is an example:
 ```bash
-py traineval.py --tokenization tiktoken --model_file my_model.pth --config_file my_model_config.pkl
+py traineval.py \
+  --tokenization=tiktoken \
+  --model_file=my_model.pth \
+  --config_file=my_config.pkl
 ```
 
 ### Running Inference
@@ -46,19 +49,27 @@ To generate text using a trained model, run `inference.py`, which uses the follo
 - `--model_file`: same as with `traineval.py`
 - `--config_file`: same as with `traineval.py`
 - `--output_file`: set this to a .txt file (default: "output.txt"); sets the output file of the generated text, which will be created at ./generated
-- `--text`: set this to a string (default: " "); sets the starting text from which to generate
+- `--text`: set this to a nonempty string (default: " "); sets the starting text from which to generate
 - `--num_tokens`: set this to a whole number (default: 10,000); sets the number of tokens to generate
 
 Here is an example:
 ```bash
-py inference.py --model_file model.py --config_file model_config.py --output_file output.txt --num_tokens 500
+py inference.py \
+  --model_file=my_model.pth \
+  --config_file=my_config.pkl \
+  --output_file=output.txt \
+  --text="Elizabeth screamed!" \
+  --num_tokens=500
 ```
 
 ### Running the 70 M Model
 Due to file size restrictions, the 70 M model weights could not be uploaded to GitHub, but are instead openly available [here](https://drive.google.com/file/d/1blo6THJ7BCKh_WTJQHEpAq33lGksipVv/view?usp=sharing) (file size: 276 MB). Once you download the file, place it in `./models` and run
 
 ```bash
-py inference.py --model_file model.py --config_file model_config.py --output_file output.txt
+py inference.py \
+  --model_file=sample_model.pth \
+  --config_file=sample_config.py \
+  --output_file=output.txt
 ```
 
 Here's a screenshot of the training/validation loss plotted over time (note that early stopping was used to avoid overfitting):
