@@ -62,8 +62,10 @@ py inference.py \
   --num_tokens=500
 ```
 
+Note that inference may fail if the next token selected cannot be properly converted to UTF-8 (a fix for this is still being developed).
+
 ### Running the 70 M Model
-Due to file size restrictions, the 70 M model weights could not be uploaded to GitHub, but are instead openly available [here](https://drive.google.com/file/d/1blo6THJ7BCKh_WTJQHEpAq33lGksipVv/view?usp=sharing) (file size: 276 MB). Once you download the file, place it in `./models` and run
+Due to file size restrictions, the 70 M model weights could not be uploaded to GitHub, but are instead openly available [here](https://drive.google.com/file/d/1blo6THJ7BCKh_WTJQHEpAq33lGksipVv/view?usp=sharing) (file size: 276 MB). Once you download the file, place it in `./models` and run, for example, this:
 
 ```bash
 py inference.py \
