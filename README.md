@@ -1,8 +1,8 @@
 # JaneLM
 
-This repository implements a language model trained on the works of Jane Austen. More specifically, the model is a decoder-only transformer model using multi-headed causal self-attention (as detailed in [Vaswani et al., 2017](https://doi.org/10.48550/arXiv.1706.03762)), and is implemented in PyTorch loosely "from scratch" (i.e., this repository does not use any of PyTorch's built-in transformer classes, but may use other classes such as `torch.nn.Linear`). The repository contains both code for training/evaluating/performing inference on smaller models, and a ~70 million parameter pretrained sample model.  
+This repository implements a language model trained on the works of Jane Austen. More specifically, the model is a decoder-only transformer model using multi-headed causal self-attention (as detailed in [Vaswani et al., 2017](https://doi.org/10.48550/arXiv.1706.03762)), and is implemented in PyTorch loosely "from scratch" (i.e., this repository does not use any of PyTorch's built-in transformer classes, but may use other classes such as `torch.nn.Linear`). 
 
-Here is a sample of some generated text from the sample 70 M model, taken from `./generated/sample.txt`:
+The repository contains both code for training your own model, as well as a ~70 million parameter pretrained sample model you can use for testing. Here is a sample of some generated text from the sample 70 M model, taken from `./generated/sample.txt`:
 
 ```
 Elizabeth's presence was as beautiful and entertainment of the meeting her linen was now such anmorrow, and in her turkeys and shades she had undone the music especially after the time, who was counting a horse in that pianof card-table down alone. Elizabeth lifted upcast eyes in half the midst of the crowne, petition suspicion on Mrs. Hurst's thoughts into which Bingley made her so high in the apartment, and they were going while; and Elizabeth remained in comfort, to part with so express out of her mother's heart. 
