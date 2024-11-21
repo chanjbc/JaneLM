@@ -126,7 +126,7 @@ class Trainer:
 
 def main():
     # initialize configs
-    train_config = TrainConfig(max_iters=1_000)
+    train_config = TrainConfig()
     model_config = ModelConfig()
 
     # load and process data
