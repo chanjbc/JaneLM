@@ -32,8 +32,8 @@ To train a new model, first set the parameters of `ModelConfig`, located in `./m
 
 Then, run `traineval.py`, which uses the following command line arguments:
 - `--tokenization`: set this to either "character" or "tiktoken" (default: "character"); controls the tokenization method used to encode/decode the dataset
-- `--model_file`: set this to a .pth file (default: "model.pth"); sets the output file of the trained model, which will be placed in ./models
-- `--config_file`: set this to a .pkl file (default: "model-config.pkl"); sets the config file of the final, trained model (this saves the model architecture), which will be placed in ./models
+- `--model_file`: set this to a .pth file (default: "model.pth"); sets the output file of the trained model, which will be placed in `./models`
+- `--config_file`: set this to a .pkl file (default: "model-config.pkl"); sets the config file of the final, trained model (this saves the model architecture), which will be placed in `./models`
 
 Here is an example:
 ```bash
@@ -48,7 +48,7 @@ py traineval.py \
 To generate text using a trained model, run `inference.py`, which uses the following command line arguments:
 - `--model_file`: same as with `traineval.py`
 - `--config_file`: same as with `traineval.py`
-- `--output_file`: set this to a .txt file (default: "output.txt"); sets the output file of the generated text, which will be created at ./generated
+- `--output_file`: set this to a .txt file (default: "output.txt"); sets the output file of the generated text, which will be created at `./generated`
 - `--text`: set this to a nonempty string (default: " "); sets the starting text from which to generate
 - `--num_tokens`: set this to a whole number (default: 10,000); sets the number of tokens to generate
 
