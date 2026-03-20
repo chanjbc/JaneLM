@@ -9,7 +9,7 @@ from tqdm import tqdm
 from typing import Dict, Tuple
 from model import ModelConfig, JaneLM
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 
@@ -26,7 +26,7 @@ class TrainConfig(BaseModel):
     B_split: int = Field(default=1, ge=1)
     lr: float = Field(default=1e-4, gt=0)
     max_iters: int = Field(default=15_000, gt=0)
-    eval_interval: int = Field(default=250, gt=0)
+    eval_interval: int = Field(default=500, gt=0)
     eval_iters: int = Field(default=250, gt=0)
     loss_tolerance: float = Field(default=0.075, gt=0)
     train_test_split: float = Field(default=0.9, ge=0, le=1)

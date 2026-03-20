@@ -1,6 +1,7 @@
 .vscode
 
 # Ignore everything in the model directory except gitkeep
+/models/*
 !/models/.gitkeep
 
 # Byte-compiled / optimized / DLL files

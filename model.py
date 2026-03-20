@@ -4,6 +4,8 @@ from torch.nn import functional as F
 
 from pydantic import BaseModel, Field, model_validator
 
+
+
 class ModelConfig(BaseModel):
     """
     Sets transformer hyperparameters.
@@ -18,12 +20,15 @@ class ModelConfig(BaseModel):
     n_block: int = Field(default=6, gt=0)
     dropout: float = Field(default=0.4, ge=0, lt=1)
     n_vocab: int = Field(default=0, ge=0)
+    tokenization: str = Field(default="character", choices=["tiktoken", "character"])
 
     @model_validator(mode="after")
     def validate_head_size(self) -> "ModelConfig":
         if self.d / self.d_k != self.n_h:
             raise ValueError(f"Constraint failed: {self.d} / {self.d_k} != {self.n_h}")
         return self
+
+
 
 class Head(nn.Module):
     """Defines a single causal self attention head."""
@@ -57,6 +62,8 @@ class Head(nn.Module):
         weights = weights @ v
         return weights
 
+
+
 class MultiHead(nn.Module):
     """Defines a multi-headed attention block."""
     def __init__(self, config):
@@ -67,9 +74,11 @@ class MultiHead(nn.Module):
 
     def forward(self, x):
         # Ensemble multiple heads
-        out = torch.cat([h(x) for h in self.n_h], dim=-1)
+        out = torch.cat([h(x) for h in self.heads], dim=-1)
         out = self.dropout(self.proj(out))
         return out
+
+
 
 class FeedForward(nn.Module):
     """Defines an MLP layer (using GELU as per the GPT-2 implementation)."""
@@ -85,6 +94,8 @@ class FeedForward(nn.Module):
     def forward(self, x):
         return self.net(x)
 
+
+
 class Block(nn.Module):
     """Defines a decoder transformer block (combine transformer, MLP, layernorm, residual connection)."""
     def __init__(self, config):
@@ -99,6 +110,8 @@ class Block(nn.Module):
         x = x + self.sa(self.ln1(x))
         x = x + self.ffwd(self.ln2(x))
         return x
+
+
 
 class JaneLM(nn.Module):
     """Assemble entire model by stacking blocks and final layer norm."""
