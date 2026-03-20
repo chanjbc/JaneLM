@@ -9,23 +9,18 @@ from tqdm import tqdm
 from typing import Dict, Tuple
 from model import ModelConfig, JaneLM
 
+from pydantic import BaseModel, Field
 
-
-@dataclass
-class TrainConfig:
+class TrainConfig(BaseModel):
     """
-    NOTE: Config class containing training parameters. Adjust as necessary.
+    Config class containing training parameters. Adjust as necessary.
     """
-    max_iters: int = 15_000  # number of training iterations
-    eval_interval: int = 250  # how frequently the model is evaluated
-    eval_iters: int = 250  # how many runs to average over when evaluating
-    learning_rate: float = 1e-4
-    loss_tolerance: float = (
-        0.075  # early stopping: if validation loss increases by this amount, stop training
-    )
-    train_test_split: float = 0.9  # fraction of data to use for training
-
-
+    lr: float = Field(default=1e-4, gt=0)
+    max_iters: int = Field(default=15_000, gt=0)
+    eval_interval: int = Field(default=250, gt=0)
+    eval_iters: int = Field(default=250, gt=0)
+    loss_tolerance: float = Field(default=0.075, gt=0)
+    train_test_split: float = Field(default=0.9, ge=0, le=1)
 
 class Trainer:
     def __init__(
@@ -41,7 +36,8 @@ class Trainer:
         self.model_config = model_config
         self.device = device
         self.optimizer = torch.optim.AdamW(
-            model.parameters(), lr=train_config.learning_rate
+            model.parameters(), 
+            lr=train_config.lr
         )
         self.model_file = model_file
 
@@ -51,15 +47,15 @@ class Trainer:
         """Get batch of data for training or validation, each containing context_size-length sequences sampled randomly."""
         data = train_data if split == "train" else val_data
 
-        # generate random starting indices
+        # Generate random starting indices
         ix = torch.randint(
-            len(data) - self.model_config.context_size, (self.model_config.batch_size,)
+            len(data) - self.model_config.T, (self.model_config.B,)
         )
-        # get sequences of context_size length
-        x = torch.stack([data[i : i + self.model_config.context_size] for i in ix])
+        # Get sequences of context_size length
+        x = torch.stack([data[i : i + self.model_config.T] for i in ix])
         # labels are the next tokens for each position
         y = torch.stack(
-            [data[i + 1 : i + 1 + self.model_config.context_size] for i in ix]
+            [data[i+1 : i+1+self.model_config.T] for i in ix]
         )
 
         return x.to(self.device), y.to(self.device)
@@ -157,11 +153,11 @@ def main():
         # initialize tiktoken
         enc = tiktoken.get_encoding("gpt2")
         encode, decode = enc.encode, enc.decode
-        model_config.vocab_size = enc.n_vocab
+        model_config.n_vocab = enc.n_vocab
     else:
         # create encodings/decodings from characters
         chars = sorted(list(set(text)))
-        model_config.vocab_size = len(chars)
+        model_config.n_vocab = len(chars)
         stoi = {ch: i for i, ch in enumerate(chars)}
         itos = {i: ch for i, ch in enumerate(chars)}
         # encoders/decoders use character lookup tables
