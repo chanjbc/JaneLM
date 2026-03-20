@@ -6,9 +6,8 @@ from pydantic import BaseModel, Field, model_validator
 
 class ModelConfig(BaseModel):
     """
-    Sets transformer hyperparameters. Adjust as necessary according to compute.
+    Sets transformer hyperparameters.
     """
-    B: int = Field(default=32, gt=0)
     T: int = Field(default=96, gt=0)
     # d: int = Field(default=512, gt=0)
     d: int = Field(default=128, gt=0)
@@ -152,7 +151,7 @@ class JaneLM(nn.Module):
     def generate(self, x, max_new_tokens):
         for _ in range(max_new_tokens):
             # Clip tokens to context size
-            x_context = x[:, -self.config.context_size:]
+            x_context = x[:, -self.config.T:]
 
             # Calling forward without using loss
             logits, _ = self(x_context)

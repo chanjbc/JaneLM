@@ -11,16 +11,35 @@ from model import ModelConfig, JaneLM
 
 from pydantic import BaseModel, Field
 
+
+
 class TrainConfig(BaseModel):
     """
-    Config class containing training parameters. Adjust as necessary.
+    Config class containing training parameters:
+
+    B: batch size
+    B_split: option for splitting batch size to reduce VRAM (B % B_split == 0)
+    lr: learning rate
+    max_iters: maximum number of training epochs
     """
+    B: int = Field(default=16, gt=0)
+    B_split: int = Field(default=1, ge=1)
     lr: float = Field(default=1e-4, gt=0)
     max_iters: int = Field(default=15_000, gt=0)
     eval_interval: int = Field(default=250, gt=0)
     eval_iters: int = Field(default=250, gt=0)
     loss_tolerance: float = Field(default=0.075, gt=0)
     train_test_split: float = Field(default=0.9, ge=0, le=1)
+
+    @model_validator(mode="after")
+    def validate_B_split(self) -> "TrainConfig":
+        if self.B < self.B_split:
+            raise ValueError(f"Constraint failed: {self.B} >= {self.B_split}")
+        if self.B % self.B_split != 0:
+            raise ValueError(f"Constraint failed: {self.B} % {self.B} != 0")
+        return self
+
+
 
 class Trainer:
     def __init__(
@@ -41,19 +60,27 @@ class Trainer:
         )
         self.model_file = model_file
 
+        self.ptdtype = ptdtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16
+        self.ctx = torch.amp.autocast(device_type=device, dtype=ptdtype)
+
     def get_batch(
-        self, split: str, train_data: torch.Tensor, val_data: torch.Tensor
+        self, 
+        split: str,
+        split_size: int, 
+        train_data: torch.Tensor, 
+        val_data: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Get batch of data for training or validation, each containing context_size-length sequences sampled randomly."""
+        """
+        Get batch of data for training or validation, each containing context_size-length sequences sampled randomly.
+        """
         data = train_data if split == "train" else val_data
 
         # Generate random starting indices
         ix = torch.randint(
-            len(data) - self.model_config.T, (self.model_config.B,)
+            len(data) - self.model_config.T, (split_size,)
         )
-        # Get sequences of context_size length
+        # Get sequences of context_size length (labels are the next tokens for each position)
         x = torch.stack([data[i : i + self.model_config.T] for i in ix])
-        # labels are the next tokens for each position
         y = torch.stack(
             [data[i+1 : i+1+self.model_config.T] for i in ix]
         )
@@ -72,8 +99,10 @@ class Trainer:
             losses = torch.zeros(self.train_config.eval_iters)
 
             for k in range(self.train_config.eval_iters):
-                X, Y = self.get_batch(split, train_data, val_data)
-                _, loss = self.model(X, Y)
+                X, Y = self.get_batch(split, self.train_config.B, train_data, val_data)
+
+                with self.ctx:
+                    _, loss = self.model(X, Y)
                 losses[k] = loss.item()
 
             out[split] = losses.mean()
@@ -84,7 +113,7 @@ class Trainer:
     def train(self, data: torch.Tensor) -> None:
         """Train model using random sampling strategy."""
 
-        # train/val split
+        # Train/val split
         n = int(self.train_config.train_test_split * len(data))
         train_data, val_data = data[:n], data[n:]
 
@@ -92,44 +121,52 @@ class Trainer:
         progress_bar = tqdm(range(self.train_config.max_iters), desc="Training")
 
         for iter_num in progress_bar:
-            # evaluate at set intervals
+            # Evaluate at set intervals
             if iter_num % self.train_config.eval_interval == 0:
                 losses = self.estimate_loss(train_data, val_data)
                 progress_bar.write(
                     f"Step {iter_num}: Train Loss: {losses['train']:.4f}; Val Loss: {losses['val']:.4f}"
                 )
-                # save best model
+
+                # Save best model
                 if losses["val"] < best_val_loss:
                     torch.save(self.model.state_dict(), f"./models/{self.model_file}")
                     best_val_loss = losses["val"]
 
-                # early stopping to prevent overfitting
+                # Early stopping to prevent overfitting
                 if losses["val"] > best_val_loss + self.train_config.loss_tolerance:
-                    progress_bar.write("Early stopping triggered!")
+                    progress_bar.write("Early stopping triggered. Stopping training.")
                     break
 
-            # training step
-            xb, yb = self.get_batch("train", train_data, val_data)
+            # Training step, with accumulation over batch splits
             self.optimizer.zero_grad(set_to_none=True)
-            # do not need logits here
-            _, loss = self.model(xb, yb)
-            loss.backward()
+            split_size = self.train_config.B // self.train_config.B_split
+            for _ in range(self.train_config.B_split):
+                xb, yb = self.get_batch("train", split_size, train_data, val_data)
+                
+                with self.ctx:
+                    # Do not need logits here
+                    _, loss = self.model(xb, yb)
+                    loss /= self.train_config.B_split
+                loss.backward()
+
             self.optimizer.step()
 
-            # update progress bar
+            # Update progress bar
             progress_bar.set_postfix({"train_loss": f"{loss.item():.4f}"})
 
 
+
 def main():
-    # initialize configs
+    # Initialize configs
     train_config = TrainConfig()
     model_config = ModelConfig()
 
-    # load and process data
+    # Load and process data
     with open("./data/janeausten.txt", "r", encoding="utf-8") as f:
         text = f.read()
 
-    # parse tokenization argument
+    # Parse tokenization argument
     parser = argparse.ArgumentParser(description="Train JaneLM language model")
     parser.add_argument(
         "--tokenization",
@@ -150,36 +187,39 @@ def main():
     args = parser.parse_args()
 
     if args.tokenization == "tiktoken":
-        # initialize tiktoken
+        # Initialize tiktoken
         enc = tiktoken.get_encoding("gpt2")
         encode, decode = enc.encode, enc.decode
         model_config.n_vocab = enc.n_vocab
     else:
-        # create encodings/decodings from characters
+        # Create encodings/decodings from characters
         chars = sorted(list(set(text)))
         model_config.n_vocab = len(chars)
         stoi = {ch: i for i, ch in enumerate(chars)}
         itos = {i: ch for i, ch in enumerate(chars)}
-        # encoders/decoders use character lookup tables
+        # Encoders/decoders use character lookup tables
         encode = lambda s: [stoi[c] for c in s]
         decode = lambda l: "".join([itos[c] for c in l])
     model_config.tokenization = args.tokenization
     
-    # save model config
+    # Save model config
     with open(f"./models/{args.config_file}", "wb") as f:
         pickle.dump(model_config, f)
 
-    # encode data
+    # Encode data
     data = torch.tensor(encode(text), dtype=torch.long)
 
-    # initialize model
+    # Initialize model
     model = JaneLM(model_config)
     print(f"Model Parameters: {model.config}")
     print(
         f"Number of Parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f} M"
     )
+    print(
+        f"Number of Trainable Parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad)/1e6:.2f} M"
+    )
 
-    # initialize trainer and start training
+    # Initialize trainer and start training
     trainer = Trainer(model, train_config, model_config, model_file=args.model_file)
     trainer.train(data)
 
