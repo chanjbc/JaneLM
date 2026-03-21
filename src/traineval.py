@@ -1,5 +1,6 @@
 import argparse
 import kagglehub
+import math
 from pathlib import Path
 import pickle
 import sys
@@ -23,25 +24,37 @@ class TrainConfig(BaseModel):
     Config class containing training parameters:
 
     B: batch size
-    B_split: option for splitting batch size to reduce VRAM (B % B_split == 0)
-    lr: learning rate
+    B_split: option for splitting batch size to reduce VRAM (must have B % B_split == 0)
     max_iters: maximum number of training epochs
     """
     B: int = Field(default=16, gt=0)
     B_split: int = Field(default=1, ge=1)
-    lr: float = Field(default=1e-4, gt=0)
     max_iters: int = Field(default=15_000, gt=0)
     eval_interval: int = Field(default=500, gt=0)
     eval_iters: int = Field(default=250, gt=0)
     loss_tolerance: float = Field(default=0.075, gt=0)
     train_test_split: float = Field(default=0.9, ge=0, le=1)
 
+    # LR scheduling params
+    max_lr: float = Field(default=1e-3, gt=0)
+    min_lr: float = Field(default=1e-6, gt=0)
+    warmup_iters: int = Field(default=100, ge=0)
+    lr_decay_iters: int = Field(default=14_900, gt=0)
+
     @model_validator(mode="after")
     def validate_B_split(self) -> "TrainConfig":
         if self.B < self.B_split:
-            raise ValueError(f"Constraint failed: {self.B} >= {self.B_split}")
+            raise ValueError(f"Constraint failed: B({self.B}) >= B_split({self.B_split}) != True")
         if self.B % self.B_split != 0:
-            raise ValueError(f"Constraint failed: {self.B} % {self.B} != 0")
+            raise ValueError(f"Constraint failed: B({self.B}) % B_split({self.B}) != 0")
+
+        if self.max_lr < self.min_lr:
+            raise ValueError(f"Constraint failed: max_lr({self.max_lr}) >= min_lr({self.min_lr}) != True")
+        if self.warmup_iters > self.max_iters:
+            raise ValueError(f"Constraint failed: warmup_iters({self.warmup_iters}) <= max_iters({self.max_iters}) != True")
+        if self.lr_decay_iters > self.max_iters:
+            raise ValueError(f"Constraint failed: lr_decay_iters({self.lr_decay_iters}) <= max_iters({self.max_iters}) != True")
+
         return self
 
 
@@ -63,7 +76,7 @@ class Trainer:
         self.device = device
         self.optimizer = torch.optim.AdamW(
             model.parameters(), 
-            lr=train_config.lr
+            lr=train_config.max_lr
         )
         self.model_file = model_file
 
@@ -91,9 +104,24 @@ class Trainer:
         y = torch.stack(
             [data[i+1 : i+1+self.model_config.T] for i in ix]
         )
-
         return x.to(self.device), y.to(self.device)
 
+    def get_lr(self, it: int) -> float:
+        """Calculate learning rate using cosine decay with warmup."""
+
+        # Before cosine decay - warmup
+        if it < self.train_config.warmup_iters:
+            return self.train_config.max_lr * (it + 1) / self.train_config.warmup_iters
+
+        # After cosine decay - return min
+        if it > self.train_config.lr_decay_iters:
+            return self.train_config.min_lr
+        
+        # Cosine decay
+        decay_ratio = (it - self.train_config.warmup_iters) / (self.train_config.lr_decay_iters - self.train_config.warmup_iters)
+        coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))
+        return self.train_config.min_lr + coeff * (self.train_config.max_lr - self.train_config.min_lr)
+    
     @torch.no_grad()
     def estimate_loss(
         self, train_data: torch.Tensor, val_data: torch.Tensor
@@ -107,7 +135,6 @@ class Trainer:
 
             for k in range(self.train_config.eval_iters):
                 X, Y = self.get_batch(split, self.train_config.B, train_data, val_data)
-
                 with self.ctx:
                     _, loss = self.model(X, Y)
                 losses[k] = loss.item()
@@ -128,6 +155,12 @@ class Trainer:
         progress_bar = tqdm(range(self.train_config.max_iters), desc="Training")
 
         for iter_num in progress_bar:
+
+            # Determine and set learning rate
+            lr = self.get_lr(iter_num)
+            for param_group in self.optimizer.param_groups:
+                param_group["lr"] = lr
+
             # Evaluate at set intervals
             if iter_num % self.train_config.eval_interval == 0:
                 losses = self.estimate_loss(train_data, val_data)
@@ -161,7 +194,10 @@ class Trainer:
             self.optimizer.step()
 
             # Update progress bar
-            progress_bar.set_postfix({"train_loss": f"{loss.item():.4f}"})
+            progress_bar.set_postfix({
+                "train_loss": f"{loss.item():.4f}", 
+                "lr": f"{lr:.4e}"
+            })
 
 
 
