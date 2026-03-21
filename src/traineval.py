@@ -27,8 +27,8 @@ class TrainConfig(BaseModel):
     B_split: option for splitting batch size to reduce VRAM (must have B % B_split == 0)
     max_iters: maximum number of training epochs
     """
-    B: int = Field(default=16, gt=0)
-    B_split: int = Field(default=1, ge=1)
+    B: int = Field(default=32, gt=0)
+    B_split: int = Field(default=2, ge=1)
     max_iters: int = Field(default=15_000, gt=0)
     eval_interval: int = Field(default=500, gt=0)
     eval_iters: int = Field(default=250, gt=0)
@@ -165,7 +165,8 @@ class Trainer:
             if iter_num % self.train_config.eval_interval == 0:
                 losses = self.estimate_loss(train_data, val_data)
                 progress_bar.write(
-                    f"Step {iter_num}: Train Loss: {losses['train']:.4f}; Val Loss: {losses['val']:.4f}"
+                    f"Step {iter_num}: Train Loss: {losses['train']:.4f} (PPL: {math.exp(losses['train']):.2f}); "
+                    f"Val Loss: {losses['val']:.4f} (PPL: {math.exp(losses['val']):.2f})"
                 )
 
                 # Save best model
@@ -196,6 +197,7 @@ class Trainer:
             # Update progress bar
             progress_bar.set_postfix({
                 "train_loss": f"{loss.item():.4f}", 
+                "train_ppl": f"{math.exp(loss.item()):.2f}",
                 "lr": f"{lr:.4e}"
             })
 
