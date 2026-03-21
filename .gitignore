@@ -1,5 +1,12 @@
+.vscode
+
 # Ignore everything in the model directory except gitkeep
+/models/*
 !/models/.gitkeep
+
+# Data folder
+/data/*
+!/data/.gitkeep
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
