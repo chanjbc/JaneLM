@@ -10,12 +10,11 @@ class ModelConfig(BaseModel):
     """
     Sets transformer hyperparameters.
     """
-    T: int = Field(default=96, gt=0)
+    T: int = Field(default=128, gt=0)
     d: int = Field(default=512, gt=0)
     d_k: int = Field(default=128, gt=0)
     d_v: int = Field(default=128, gt=0)
     n_h: int = Field(default=4, gt=0)
-    n_h: int = Field(default=1, gt=0)
     n_block: int = Field(default=6, gt=0)
     dropout: float = Field(default=0.4, ge=0, lt=1)
     n_vocab: int = Field(default=0, ge=0)
@@ -24,7 +23,7 @@ class ModelConfig(BaseModel):
     @model_validator(mode="after")
     def validate_head_size(self) -> "ModelConfig":
         if self.d / self.d_k != self.n_h:
-            raise ValueError(f"Constraint failed: {self.d} / {self.d_k} != {self.n_h}")
+            raise ValueError(f"Constraint failed: d({self.d}) / d_k({self.d_k}) != n_h({self.n_h})")
         return self
 
 

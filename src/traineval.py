@@ -30,16 +30,16 @@ class TrainConfig(BaseModel):
     B: int = Field(default=32, gt=0)
     B_split: int = Field(default=2, ge=1)
     max_iters: int = Field(default=15_000, gt=0)
-    eval_interval: int = Field(default=500, gt=0)
+    eval_interval: int = Field(default=1_000, gt=0)
     eval_iters: int = Field(default=250, gt=0)
     loss_tolerance: float = Field(default=0.075, gt=0)
     train_test_split: float = Field(default=0.9, ge=0, le=1)
 
     # LR scheduling params
     max_lr: float = Field(default=1e-3, gt=0)
-    min_lr: float = Field(default=1e-6, gt=0)
-    warmup_iters: int = Field(default=100, ge=0)
-    lr_decay_iters: int = Field(default=14_900, gt=0)
+    min_lr: float = Field(default=3e-6, gt=0)
+    warmup_iters: int = Field(default=250, ge=0)
+    lr_decay_iters: int = Field(default=14_750, gt=0)
 
     @model_validator(mode="after")
     def validate_B_split(self) -> "TrainConfig":
@@ -238,7 +238,7 @@ def main():
     parser.add_argument(
         "--tokenization",
         choices=["tiktoken", "character"],
-        default="character",
+        default="tiktoken",
         help="Tokenization method to use",
     )
     parser.add_argument(
@@ -280,6 +280,7 @@ def main():
 
     # Initialize model
     model = JaneLM(model_config)
+    # model = torch.compile(model, dynamic=True)
     print(f"Model Parameters: {model.config}")
     print(
         f"Number of Parameters: {sum(p.numel() for p in model.parameters())/1e6:.2f} M"
