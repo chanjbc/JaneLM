@@ -58,19 +58,30 @@ def main():
     tokenization = model_config.tokenization
 
     if tokenization == "tiktoken":
-        # initialize tiktoken
+        # Initialize tiktoken
         enc = tiktoken.get_encoding("gpt2")
         encode, decode = enc.encode, enc.decode
-        model_config.vocab_size = enc.n_vocab
-    else:
-        # load and process data
-        text = (data_path / "janeausten.txt").read_text(encoding="utf-8")
-        # create encodings/decodings from characters
+        model_config.n_vocab = enc.n_vocab
+    elif tokenization == "custom-bpe":
+        import sys
+        utils_path = BASE_DIR.parent / "utils"
+        if str(utils_path) not in sys.path:
+            sys.path.append(str(utils_path))
+        from bpe import BPE
+        tokenizer = BPE()
+        tokenizer.load(models_path / f"{args.config_file.split('.')[0]}_bpe.pkl")
+        encode, decode = tokenizer.encode, tokenizer.decode
+    else:  # Character
+        # Load and process data
+        austen_text = (data_path / "preprocess-austen.txt").read_text(encoding="utf-8")
+        dickens_text = (data_path / "preprocess-dickens.txt").read_text(encoding="utf-8")
+        text = austen_text + dickens_text
+        # Create encodings/decodings from characters
         chars = sorted(list(set(text)))
-        model_config.vocab_size = len(chars)
+        model_config.n_vocab = len(chars)
         stoi = {ch: i for i, ch in enumerate(chars)}
         itos = {i: ch for i, ch in enumerate(chars)}
-        # encoders/decoders use character lookup tables
+        # Encoders/decoders use character lookup tables
         encode = lambda s: [stoi[c] for c in s]
         decode = lambda l: "".join([itos[c] for c in l])
 

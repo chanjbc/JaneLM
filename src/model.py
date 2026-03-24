@@ -11,14 +11,13 @@ class ModelConfig(BaseModel):
     Sets transformer hyperparameters.
     """
     T: int = Field(default=128, gt=0)
-    d: int = Field(default=512, gt=0)
-    d_k: int = Field(default=128, gt=0)
-    d_v: int = Field(default=128, gt=0)
+    d: int = Field(default=1_024, gt=0)
+    d_k: int = Field(default=256, gt=0)
     n_h: int = Field(default=4, gt=0)
     n_block: int = Field(default=6, gt=0)
     dropout: float = Field(default=0.4, ge=0, lt=1)
-    n_vocab: int = Field(default=0, ge=0)
-    tokenization: str = Field(default="tiktoken", choices=["tiktoken", "character"])
+    n_vocab: int = Field(default=2_000, gt=0) # Only used with custom-bpe tokenization (with character/tiktoken, computed automatically)
+    tokenization: str = Field(default="custom-bpe", choices=["character", "custom-bpe", "tiktoken"])
 
     @model_validator(mode="after")
     def validate_head_size(self) -> "ModelConfig":

@@ -29,17 +29,17 @@ class TrainConfig(BaseModel):
     """
     B: int = Field(default=32, gt=0)
     B_split: int = Field(default=2, ge=1)
-    max_iters: int = Field(default=15_000, gt=0)
+    max_iters: int = Field(default=30_000, gt=0)
     eval_interval: int = Field(default=1_000, gt=0)
     eval_iters: int = Field(default=250, gt=0)
     loss_tolerance: float = Field(default=0.075, gt=0)
     train_test_split: float = Field(default=0.9, ge=0, le=1)
 
     # LR scheduling params
-    max_lr: float = Field(default=1e-3, gt=0)
-    min_lr: float = Field(default=3e-6, gt=0)
-    warmup_iters: int = Field(default=250, ge=0)
-    lr_decay_iters: int = Field(default=14_750, gt=0)
+    max_lr: float = Field(default=1e-4, gt=0)
+    min_lr: float = Field(default=1e-6, gt=0)
+    warmup_iters: int = Field(default=500, ge=0)
+    lr_decay_iters: int = Field(default=29_500, gt=0)
 
     @model_validator(mode="after")
     def validate_B_split(self) -> "TrainConfig":
@@ -237,8 +237,8 @@ def main():
     parser = argparse.ArgumentParser(description="Train JaneLM language model")
     parser.add_argument(
         "--tokenization",
-        choices=["tiktoken", "character"],
-        default="tiktoken",
+        choices=["character", "custom-bpe", "tiktoken"],
+        default="custom-bpe",
         help="Tokenization method to use",
     )
     parser.add_argument(
@@ -258,7 +258,23 @@ def main():
         enc = tiktoken.get_encoding("gpt2")
         encode, decode = enc.encode, enc.decode
         model_config.n_vocab = enc.n_vocab
-    else:
+    elif args.tokenization == "custom-bpe":
+        utils_path = BASE_DIR.parent / "utils"
+        if str(utils_path) not in sys.path:
+            sys.path.append(str(utils_path))
+        from bpe import BPE
+        tokenizer = BPE()
+        
+        # Tokenize only the first million tokens as a proxy for the entire text
+        train_text = text[:1_000_000]
+        print(f"Training BPE tokenizer to vocab size {model_config.n_vocab} on {len(train_text)} chars...")
+        tokenizer.train(train_text, model_config.n_vocab)
+        encode, decode = tokenizer.encode, tokenizer.decode
+        
+        models_path = BASE_DIR.parent / "models"
+        models_path.mkdir(parents=True, exist_ok=True)
+        tokenizer.save(models_path / f"{args.config_file.split('.')[0]}_bpe.pkl")
+    else:  # character
         # Create encodings/decodings from characters
         chars = sorted(list(set(text)))
         model_config.n_vocab = len(chars)
@@ -292,6 +308,7 @@ def main():
     # Initialize trainer and start training
     trainer = Trainer(model, train_config, model_config, models_dir=models_path, model_file=args.model_file)
     trainer.train(data)
+
 
 
 if __name__ == "__main__":

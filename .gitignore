@@ -8,6 +8,10 @@
 /data/*
 !/data/.gitkeep
 
+# Generated folder
+/generated/*
+!/generated/.gitkeep
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
