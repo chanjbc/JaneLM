@@ -44,6 +44,12 @@ def main():
         help="Number of tokens to generate",
         default=10_000
     )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        help="Temperature for sampling (higher = more random)",
+        default=1.0
+    )
 
     args = parser.parse_args()
 
@@ -94,7 +100,8 @@ def main():
     # TODO: add error handling
     output_path = generated_path / args.output_file
     generated_path.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(decode(model.generate(starting_text, max_new_tokens=args.num_tokens)[0].tolist()))
+    out_tokens = model.generate(starting_text, max_new_tokens=args.num_tokens, temperature=args.temperature)[0]
+    output_path.write_text(decode(out_tokens.tolist()))
     print(f"Text successfully generated to {output_path}")
 
 

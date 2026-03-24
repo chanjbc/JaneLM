@@ -158,14 +158,14 @@ class JaneLM(nn.Module):
             loss = F.cross_entropy(logits, targets)
         return logits, loss
 
-    def generate(self, x, max_new_tokens):
+    def generate(self, x, max_new_tokens, temperature=1.0):
         for _ in range(max_new_tokens):
             # Clip tokens to context size
             x_context = x[:, -self.config.T:]
 
             # Calling forward without using loss
             logits, _ = self(x_context)
-            logits = logits[:, -1, :]
+            logits = logits[:, -1, :] / temperature
             probs = F.softmax(logits, dim=-1)
             next_token = torch.multinomial(probs, num_samples=1)
             x = torch.cat((x, next_token), dim=1)
