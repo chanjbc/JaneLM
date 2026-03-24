@@ -36,8 +36,8 @@ class TrainConfig(BaseModel):
     train_test_split: float = Field(default=0.9, ge=0, le=1)
 
     # LR scheduling params
-    max_lr: float = Field(default=1e-4, gt=0)
-    min_lr: float = Field(default=1e-6, gt=0)
+    max_lr: float = Field(default=3e-6, gt=0)
+    min_lr: float = Field(default=1e-7, gt=0)
     warmup_iters: int = Field(default=500, ge=0)
     lr_decay_iters: int = Field(default=29_500, gt=0)
 
@@ -251,6 +251,11 @@ def main():
         default="model_config.pkl",
         help="File name containing saved model parameters: will be saved to ./models/{config_file}",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Resume training from the model specified in --model_file",
+    )
     args = parser.parse_args()
 
     # Tokenization
@@ -267,13 +272,20 @@ def main():
         
         # Tokenize only the first million tokens as a proxy for the entire text
         train_text = text[:1_000_000]
-        print(f"Training BPE tokenizer to vocab size {model_config.n_vocab} on {len(train_text)} chars...")
-        tokenizer.train(train_text, model_config.n_vocab)
-        encode, decode = tokenizer.encode, tokenizer.decode
         
         models_path = BASE_DIR.parent / "models"
         models_path.mkdir(parents=True, exist_ok=True)
-        tokenizer.save(models_path / f"{args.config_file.split('.')[0]}_bpe.pkl")
+        bpe_file = models_path / f"{args.config_file.split('.')[0]}_bpe.pkl"
+        
+        if args.resume and bpe_file.exists():
+            print(f"Loading pretrained BPE tokenizer from {bpe_file}...")
+            tokenizer.load(bpe_file)
+        else:
+            print(f"Training BPE tokenizer to vocab size {model_config.n_vocab} on {len(train_text)} chars...")
+            tokenizer.train(train_text, model_config.n_vocab)
+            tokenizer.save(bpe_file)
+            
+        encode, decode = tokenizer.encode, tokenizer.decode
     else:  # character
         # Create encodings/decodings from characters
         chars = sorted(list(set(text)))
@@ -296,6 +308,16 @@ def main():
 
     # Initialize model
     model = JaneLM(model_config)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if args.resume:
+        model_path = models_path / args.model_file
+        if model_path.exists():
+            print(f"Loading pretrained model from {model_path}...")
+            model.load_state_dict(torch.load(model_path, map_location=device, weights_only=True))
+        else:
+            print(f"Pretrained model {model_path} not found. Starting from scratch.")
+    model = model.to(device)
+
     # model = torch.compile(model, dynamic=True)
     print(f"Model Parameters: {model.config}")
     print(
