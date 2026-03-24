@@ -22,7 +22,7 @@ Note that the generated text is only half coherent--this is because modern langu
 - tqdm
 
 ## More Implementation Details
-The model is a decoder-only transformer model using causal self-attention with prenorms (as opposed to the postnorms used in the original implementation). By default, the model is trained using the cross-entropy loss with the AdamW optimizer, and trains on the dataset by first selecting random mini-batches of tokens of length context_size and optimizing autoregressively. While training, the training/validation losses are averaged over multiple passes, reducing the noise of the error signals, and early stopping is additionally used to stop training before overfitting begins. For tokenization, this repo accepts either character-level tokenization or tiktoken GPT-2 tokenization.
+The model is a decoder-only transformer model using causal self-attention with prenorms (as opposed to the postnorms used in the original implementation). By default, the model is trained using the cross-entropy loss with the AdamW optimizer, and trains on the dataset by first selecting random mini-batches of tokens of length context_size and optimizing autoregressively. The learning rate is updated using cosine learning rate scheduling with linear warmup. To improve training efficiency and memory usage, the model utilizes BF16 (bfloat16) mixed precision training. While training, the training/validation losses are averaged over multiple passes, reducing the noise of the error signals, and early stopping is additionally used to stop training before overfitting begins. For tokenization, this repo accepts character-level tokenization, tiktoken GPT-2 tokenization, or a custom-trained Byte-Pair Encoding (BPE) tokenizer.
 
 ## Usage
 You can either use this repository to train your own model or run the sample 70 M model (see ["Running the 70 M Model"](#running-the-70-m-model)).
@@ -31,7 +31,8 @@ You can either use this repository to train your own model or run the sample 70 
 To train a new model, first set the parameters of `ModelConfig`, located in `./model.py`, and `TrainConfig`, located in `traineval.py`, according to your computational resources. By default, these are set to the same values used in training the 70 M parameter model.
 
 Then, run `traineval.py`, which uses the following command line arguments:
-- `--tokenization`: set this to either "character" or "tiktoken" (default: "character"); controls the tokenization method used to encode/decode the dataset
+- `--tokenization`: set this to either "character", "tiktoken", or "custom-bpe" (default: "custom-bpe"); controls the tokenization method used to encode/decode the dataset
+- `--resume`: optional flag to resume training from the model and BPE tokenizer specified in `--model_file` and `--config_file`
 - `--model_file`: set this to a .pth file (default: "model.pth"); sets the output file of the trained model, which will be placed in `./models`
 - `--config_file`: set this to a .pkl file (default: "model-config.pkl"); sets the config file of the final, trained model (this saves the model architecture), which will be placed in `./models`
 
@@ -89,7 +90,8 @@ Here's a screenshot of the training/validation loss plotted over time (note that
 - ~~Add tqdm progress bars for train/eval~~
 - ~~Add argparse support~~
 - ~~Add dataclass support~~
+- ~~Add resume option to traineval.py~~
+- ~~Add BF16 mixed precision training~~
+- ~~Add cosine learning rate scheduling with linear warmup~~
+- ~~Add custom BPE tokenizer~~
 - Fix inference errors due to UTF-8 and weird tokenization stuff
-- Continue to improve model
-- Fine-tuning???
-- Add more to this README :)
