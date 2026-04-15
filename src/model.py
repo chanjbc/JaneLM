@@ -82,8 +82,6 @@ class MultiHead(nn.Module):
         self.d_k = config.d_k
         self.T = config.T
         
-        # TODO 3: Initialize batched linear layers for Q, K, and V instead of individual Heads.
-        # Note: Q needs to output for `n_h` heads, while K and V output for `n_kv` heads.
         self.query = nn.Linear(self.d, self.d, bias=False)
         self.key = nn.Linear(self.d, self.n_kv * self.d_k, bias=False)
         self.value = nn.Linear(self.d, self.n_kv * self.d_k, bias=False)
@@ -100,10 +98,6 @@ class MultiHead(nn.Module):
         q = self.query(x).reshape(B, T, self.n_h, self.d_k)
         k = self.key(x).reshape(B, T, self.n_kv, self.d_k)
         v = self.value(x).reshape(B, T, self.n_kv, self.d_k)
-        
-        # TODO 5: Precompute frequencies and apply RoPE to Q and K
-        # e.g., freqs_cis = precompute_freqs_cis(self.d_k, self.T).to(x.device)
-        # q, k = apply_rotary_emb(q, k, freqs_cis[:T])]
 
         # Compute frequencies and apply RoPE
         q, k = apply_rope(q, k, self.freq[:T])
@@ -111,13 +105,6 @@ class MultiHead(nn.Module):
         q = q.transpose(1, 2)
         k = k.repeat_interleave(self.n_h // self.n_kv, dim=2).transpose(1, 2)
         v = v.repeat_interleave(self.n_h // self.n_kv, dim=2).transpose(1, 2)
-        
-        # TODO 7: Compute scaled dot-product attention
-        # - Transpose Q, K, V to (B, n_h, T, d_k)
-        # - Compute Q @ K^T / sqrt(d_k)
-        # - Apply causal mask using self.tril
-        # - Softmax and dropout
-        # - Multiply by V
 
         # sa = softmax(m * (Q @ K^T / sqrt(d_k))) @ V
         out = q @ k.transpose(-2, -1) * self.d_k ** -0.5
