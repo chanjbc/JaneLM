@@ -27,19 +27,19 @@ class TrainConfig(BaseModel):
     B_split: option for splitting batch size to reduce VRAM (must have B % B_split == 0)
     max_iters: maximum number of training epochs
     """
-    B: int = Field(default=32, gt=0)
+    B: int = Field(default=48, gt=0)
     B_split: int = Field(default=2, ge=1)
-    max_iters: int = Field(default=30_000, gt=0)
+    max_iters: int = Field(default=1_000, gt=0)
     eval_interval: int = Field(default=1_000, gt=0)
     eval_iters: int = Field(default=250, gt=0)
-    loss_tolerance: float = Field(default=0.075, gt=0)
+    loss_tolerance: float = Field(default=0.035, gt=0)
     train_test_split: float = Field(default=0.9, ge=0, le=1)
 
     # LR scheduling params
-    max_lr: float = Field(default=3e-6, gt=0)
-    min_lr: float = Field(default=1e-7, gt=0)
-    warmup_iters: int = Field(default=500, ge=0)
-    lr_decay_iters: int = Field(default=29_500, gt=0)
+    max_lr: float = Field(default=1e-5, gt=0)
+    min_lr: float = Field(default=1e-6, gt=0)
+    warmup_iters: int = Field(default=250, ge=0)
+    lr_decay_iters: int = Field(default=900, gt=0)
 
     @model_validator(mode="after")
     def validate_B_split(self) -> "TrainConfig":
@@ -47,14 +47,16 @@ class TrainConfig(BaseModel):
             raise ValueError(f"Constraint failed: B({self.B}) >= B_split({self.B_split}) != True")
         if self.B % self.B_split != 0:
             raise ValueError(f"Constraint failed: B({self.B}) % B_split({self.B}) != 0")
+        return self
 
+    @model_validator(mode="after")
+    def validate_lr_schedule(self) -> "TrainConfig":
         if self.max_lr < self.min_lr:
             raise ValueError(f"Constraint failed: max_lr({self.max_lr}) >= min_lr({self.min_lr}) != True")
         if self.warmup_iters > self.max_iters:
             raise ValueError(f"Constraint failed: warmup_iters({self.warmup_iters}) <= max_iters({self.max_iters}) != True")
         if self.lr_decay_iters > self.max_iters:
             raise ValueError(f"Constraint failed: lr_decay_iters({self.lr_decay_iters}) <= max_iters({self.max_iters}) != True")
-
         return self
 
 
@@ -280,6 +282,7 @@ def main():
         if args.resume and bpe_file.exists():
             print(f"Loading pretrained BPE tokenizer from {bpe_file}...")
             tokenizer.load(bpe_file)
+            model_config.dropout = 0.5
         else:
             print(f"Training BPE tokenizer to vocab size {model_config.n_vocab} on {len(train_text)} chars...")
             tokenizer.train(train_text, model_config.n_vocab)

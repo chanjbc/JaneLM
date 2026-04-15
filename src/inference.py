@@ -101,7 +101,7 @@ def main():
     output_path = generated_path / args.output_file
     generated_path.mkdir(parents=True, exist_ok=True)
     out_tokens = model.generate(starting_text, max_new_tokens=args.num_tokens, temperature=args.temperature)[0]
-    output_path.write_text(decode(out_tokens.tolist()))
+    output_path.write_text(decode(out_tokens.tolist()), encoding="utf-8", errors="replace")
     print(f"Text successfully generated to {output_path}")
 
 

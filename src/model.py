@@ -11,13 +11,20 @@ class ModelConfig(BaseModel):
     Sets transformer hyperparameters.
     """
     T: int = Field(default=128, gt=0)
-    d: int = Field(default=1_024, gt=0)
+    d: int = Field(default=2_048, gt=0)
     d_k: int = Field(default=256, gt=0)
-    n_h: int = Field(default=4, gt=0)
+    n_h: int = Field(default=8, gt=0)
     n_block: int = Field(default=6, gt=0)
     dropout: float = Field(default=0.4, ge=0, lt=1)
-    n_vocab: int = Field(default=2_000, gt=0) # Only used with custom-bpe tokenization (with character/tiktoken, computed automatically)
+    n_vocab: int = Field(default=2_500, gt=0) # Only used with custom-bpe tokenization (with character/tiktoken, computed automatically)
     tokenization: str = Field(default="custom-bpe", choices=["character", "custom-bpe", "tiktoken"])
+    n_kv: int = Field(default=4, gt=0) # Number of key/value heads for GQA (1 means MQA)
+
+    @model_validator(mode="after")
+    def validate_gqa(self) -> "ModelConfig":
+        if self.n_h % self.n_kv != 0:
+            raise ValueError(f"Constraint failed: n_h({self.n_h}) % n_kv({self.n_kv}) != 0")
+        return self
 
     @model_validator(mode="after")
     def validate_head_size(self) -> "ModelConfig":
@@ -27,53 +34,103 @@ class ModelConfig(BaseModel):
 
 
 
-class Head(nn.Module):
-    """Defines a single causal self attention head."""
-    def __init__(self, config):
-        super().__init__()
-        self.query = nn.Linear(config.d, config.d_k, bias=False)
-        self.key = nn.Linear(config.d, config.d_k, bias=False)
-        self.value = nn.Linear(config.d, config.d_k, bias=False)
-        self.register_buffer("tril", torch.tril(torch.ones(config.T, config.T)))
-        self.dropout = nn.Dropout(config.dropout)
+def precompute_freq(d_k: int, T: int, base: float = 10000.0) -> torch.Tensor:
+    """Precompute RoPE frequencies."""
+    theta_i = base ** (-2 * torch.arange(0, d_k, 2) / d_k)
+    m = torch.arange(T)
+    freq = torch.outer(m, theta_i)
+    return freq
 
-    def forward(self, x):
-        # Only need the sequence length dimension. Needed because input may not yet be context_size (e.g., beginning generation from scratch) 
-        _, T, _ = x.shape
 
-        q = self.query(x)
-        k = self.key(x)
-        v = self.value(x)
 
-        # QK^T / sqrt(d_k) (B x T x T)
-        weights = q @ k.transpose(-2, -1) * k.shape[-1] ** -0.5
+def apply_rope(q: torch.Tensor, k: torch.Tensor, freqs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    """Apply RoPE to Q and K."""
 
-        # Mask future tokens (causal self-attention)
-        weights = weights.masked_fill(self.tril[:T, :T] == 0, float("-inf"))
+    # Extract even/odd portions (Assumes q, k shape (B, T, n_h, d_k))
+    q_even = q[..., 0::2]
+    q_odd = q[..., 1::2]
+    k_even = k[..., 0::2]
+    k_odd = k[..., 1::2]
 
-        # Row-wise softmax
-        weights = F.softmax(weights, dim=-1)
+    cos = freqs[None, :, None, :].cos()
+    sin = freqs[None, :, None, :].sin()
 
-        # Regularize and finish by multiplying by V (self_att = softmax(QK^T/sqrt(dk))V)
-        weights = self.dropout(weights)
-        weights = weights @ v
-        return weights
+    q_out_even = q_even * cos - q_odd * sin
+    q_out_odd = q_even * sin + q_odd * cos
+    k_out_even = k_even * cos - k_odd * sin
+    k_out_odd = k_even * sin + k_odd * cos
+
+    q_out = torch.empty_like(q)
+    k_out = torch.empty_like(k)
+
+    q_out[..., 0::2] = q_out_even
+    q_out[..., 1::2] = q_out_odd
+    k_out[..., 0::2] = k_out_even
+    k_out[..., 1::2] = k_out_odd
+
+    return q_out, k_out
 
 
 
 class MultiHead(nn.Module):
-    """Defines a multi-headed attention block."""
+    """Defines a multi-headed attention block with Grouped-Query Attention (GQA)."""
     def __init__(self, config):
         super().__init__()
-        self.heads = nn.ModuleList([Head(config) for _ in range(config.n_h)])
+        self.d = config.d
+        self.n_h = config.n_h
+        self.n_kv = config.n_kv
+        self.d_k = config.d_k
+        self.T = config.T
+        
+        # TODO 3: Initialize batched linear layers for Q, K, and V instead of individual Heads.
+        # Note: Q needs to output for `n_h` heads, while K and V output for `n_kv` heads.
+        self.query = nn.Linear(self.d, self.d, bias=False)
+        self.key = nn.Linear(self.d, self.n_kv * self.d_k, bias=False)
+        self.value = nn.Linear(self.d, self.n_kv * self.d_k, bias=False)
+        
         self.proj = nn.Linear(config.d, config.d)
         self.dropout = nn.Dropout(config.dropout)
+        self.register_buffer("tril", torch.tril(torch.ones(config.T, config.T)))
+        self.register_buffer("freq", precompute_freq(config.d_k, config.T))
 
     def forward(self, x):
-        # Ensemble multiple heads
-        out = torch.cat([h(x) for h in self.heads], dim=-1)
-        out = self.dropout(self.proj(out))
-        return out
+        # Note: need the sequence length here bc input may not yet be context_size (e.g., beginning generation from scratch)
+        B, T, C = x.shape
+        
+        q = self.query(x).reshape(B, T, self.n_h, self.d_k)
+        k = self.key(x).reshape(B, T, self.n_kv, self.d_k)
+        v = self.value(x).reshape(B, T, self.n_kv, self.d_k)
+        
+        # TODO 5: Precompute frequencies and apply RoPE to Q and K
+        # e.g., freqs_cis = precompute_freqs_cis(self.d_k, self.T).to(x.device)
+        # q, k = apply_rotary_emb(q, k, freqs_cis[:T])]
+
+        # Compute frequencies and apply RoPE
+        q, k = apply_rope(q, k, self.freq[:T])
+        
+        q = q.transpose(1, 2)
+        k = k.repeat_interleave(self.n_h // self.n_kv, dim=2).transpose(1, 2)
+        v = v.repeat_interleave(self.n_h // self.n_kv, dim=2).transpose(1, 2)
+        
+        # TODO 7: Compute scaled dot-product attention
+        # - Transpose Q, K, V to (B, n_h, T, d_k)
+        # - Compute Q @ K^T / sqrt(d_k)
+        # - Apply causal mask using self.tril
+        # - Softmax and dropout
+        # - Multiply by V
+
+        # sa = softmax(m * (Q @ K^T / sqrt(d_k))) @ V
+        out = q @ k.transpose(-2, -1) * self.d_k ** -0.5
+        out = out.masked_fill(self.tril[:T, :T] == 0, float("-inf"))
+        out = F.softmax(out, dim=-1)
+
+        out = self.dropout(out)
+        out = out @ v
+        
+        # Reshape back to (B, T, C) before projection
+        out = out.transpose(1, 2).contiguous().view(B, T, C)
+
+        return self.dropout(self.proj(out))
 
 
 
@@ -116,7 +173,7 @@ class JaneLM(nn.Module):
         super().__init__()
         self.config = config
         self.token_embedding_table = nn.Embedding(config.n_vocab, config.d)
-        self.position_embedding_table = nn.Embedding(config.T, config.d)
+        # self.position_embedding_table removed for RoPE
         self.blocks = nn.Sequential(*[Block(config) for _ in range(config.n_block)])
         self.ln_f = nn.LayerNorm(config.d) # layer norm final layer
         self.unembed = nn.Linear(config.d, config.n_vocab)
@@ -137,10 +194,7 @@ class JaneLM(nn.Module):
         # Need T here because the input may not yet be context_size (e.g., beginning generation from scratch)
         B, T = x.shape
 
-        # Retrieve embeddings
-        tok_embed = self.token_embedding_table(x)
-        pos_embed = self.position_embedding_table(torch.arange(T, device=x.device))
-        x = tok_embed + pos_embed
+        x = self.token_embedding_table(x)
 
         # Run through transformer layers and final layer norm
         x = self.blocks(x)
